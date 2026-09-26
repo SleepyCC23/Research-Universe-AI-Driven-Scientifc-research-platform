@@ -1,4 +1,3 @@
-# Research-Universe-AI-Driven-Scientifc-research-platform
 
 # 研宇宙 Research Universe
 
