@@ -1,0 +1,460 @@
+// 研宇宙 Research Universe · Prisma Schema
+// 数据库：MySQL 8.0
+// 约定：核心实体用正规表；页面级复杂载荷用 Json 列（MySQL 原生支持），避免表爆炸。
+// 所有 id 均为字符串（cuid 或业务 id 如 p_2001），与前端类型（src/types/index.ts）对齐。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 1. 用户 / 认证 / 账号
+// ============================================================
+
+model User {
+  id                String    @id @default(cuid())
+  nickname          String
+  avatarText        String    @default("研")
+  /// 自定义头像：前端压缩到 256×256 后的 data URL（image/png 或 image/jpeg）；
+  /// 为空表示使用 avatarText 生成的文字头像。用 MediumText 容纳 base64 体积。
+  avatarUrl         String?   @db.MediumText
+  major             String    @default("心理学")
+  grade             String    @default("研二")
+  phone             String?   @unique
+  eduEmail          String?
+  planId            String    @default("student")
+  registeredAt      DateTime  @default(now())
+  allowTraining     Boolean   @default(false)
+  keepHistoryDays   Int       @default(30)
+  exportRequestedAt DateTime?
+
+  verification  StudentVerification?
+  devices       LoginDevice[]
+  notifications Notification[]
+  prefItems     NotificationPref[]
+  quota         Quota?
+  projects      Project[]
+  zotero        ZoteroBinding?
+}
+
+model StudentVerification {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified       Boolean   @default(false)
+  channel        String    @default("none") // eduEmail | chsi | none
+  eduEmail       String?
+  verifiedAt     DateTime?
+  benefitsSynced Boolean   @default(false)
+  graceDays      Int       @default(30)
+}
+
+model NotificationPref {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  description String
+  enabled     Boolean @default(true)
+  mandatory   Boolean @default(false)
+
+  @@unique([userId, key])
+}
+
+model LoginDevice {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String
+  deviceName   String
+  locationText String
+  lastActiveAt DateTime @default(now())
+  current      Boolean  @default(false)
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  route       String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  contact   String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Quota {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId              String   @default("student")
+  resetAt             DateTime
+  reviewGenerateUsed  Int      @default(0)
+  reviewGenerateLimit Int      @default(20)
+  verifyUsed          Int      @default(0)
+  verifyLimit         Int      @default(30)
+  sandboxMinutesUsed  Int      @default(0)
+  sandboxMinutesLimit Int      @default(300)
+  exportUsed          Int      @default(0)
+  exportLimit         Int      @default(50)
+  overagePolicy       String   @default("throttle")
+}
+
+model ZoteroBinding {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bound             Boolean @default(false)
+  account           String  @default("")
+  bidirectionalSync Boolean @default(false)
+  rateLimitText     String  @default("")
+  fallbackText      String  @default("")
+}
+
+// ============================================================
+// 2. 项目
+// ============================================================
+
+model Project {
+  id                String   @id @default(cuid())
+  ownerId           String
+  owner             User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title             String
+  discipline        String
+  route             String // dataDriven | theoryDriven
+  stage             String // topic | literature | analysis | writing | submission
+  stageLabel        String
+  progress          Int      @default(0)
+  currentPhaseName  String   @default("")
+  currentPhaseRange String   @default("")
+  lastEditedText    String   @default("刚刚创建")
+  mainDdlName       String   @default("")
+  mainDdlDaysLeft   Int      @default(0)
+  footnote          String   @default("")
+  todoCount         Int      @default(0)
+  verifiedCount     Int      @default(0)
+  dataLevel         String   @default("L1")
+  createdAt         DateTime @default(now())
+
+  schedule       ProjectSchedule?
+  compliance     ProjectCompliance?
+  ddlKeyword     DdlKeyword?
+  stageArtifacts StageArtifacts?
+  members        ProjectMember[]
+  versions       ProjectVersion[]
+  progressRec    ProjectProgress?
+  drafts         StepDraft[]
+  introState     IntroState?
+  dataFiles      DataFile[]
+  variables      DataVariable[]
+  hypotheses     Hypothesis[]
+  papers         LitPaper[]
+  selection      LitSelection?
+  verify         LitVerify?
+  kbQas          KbQa[]
+  analysisState  AnalysisMethodState?
+  healthReport   HealthReport?
+  analysisRuns   AnalysisRun[]
+  writingDoc     WritingDoc?
+  journalState   JournalState?
+  reviewState    ReviewState?
+  exportState    ExportState?
+  tasks          Task[]
+}
+
+model ProjectSchedule {
+  id         String  @id @default(cuid())
+  projectId  String  @unique
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rangeStart String
+  rangeEnd   String
+  today      String
+  phases     Json
+  milestones Json
+  tip        String  @default("")
+}
+
+model ProjectCompliance {
+  id          String  @id @default(cuid())
+  projectId   String  @unique
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dataLevel   String  @default("L1")
+  skipConfirm Boolean @default(false)
+}
+
+model DdlKeyword {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  selected  String  @default("")
+  options   Json
+}
+
+model StageArtifacts {
+  id                String  @id @default(cuid())
+  projectId         String  @unique
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  currentStage      String
+  currentStageLabel String
+  artifacts         Json
+}
+
+model ProjectMember {
+  id              String  @id @default(cuid())
+  projectId       String
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  avatarText      String
+  role            String
+  roleLabel       String
+  permissionLabel String
+}
+
+model ProjectVersion {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionNo    String
+  operatorName String
+  operatedAt   DateTime @default(now())
+  description  String
+  rollbackable Boolean  @default(true)
+}
+
+model ProjectProgress {
+  id            String  @id @default(cuid())
+  projectId     String  @unique
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps         Json
+  lastStepKey   String?
+  resumeRoute   String
+  resumeLabel   String
+  hasUnfinished Boolean @default(true)
+}
+
+model StepDraft {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stepKey   String
+  draft     Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, stepKey])
+}
+
+// ============================================================
+// 3. 引言（研究热点 / 理论驱动 / 数据驱动）
+// ============================================================
+
+model IntroState {
+  id            String  @id @default(cuid())
+  projectId     String  @unique
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hotspot       Json?
+  topicKeywords Json?
+  topicTheory   Json?
+  dataUpload    Json?
+}
+
+model DataFile {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileId     String
+  fileName   String
+  metaText   String   @default("")
+  rows       Int      @default(0)
+  columns    Int      @default(0)
+  sizeText   String   @default("")
+  status     String   @default("uploaded")
+  statusText String   @default("")
+  storedPath String?
+  createdAt  DateTime @default(now())
+}
+
+model DataVariable {
+  id             String  @id @default(cuid())
+  projectId      String
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  varName        String
+  typeLabel      String
+  valueRange     String
+  missingRate    Float   @default(0)
+  suggestedRole  String
+  overriddenRole String?
+  confirmed      Boolean @default(false)
+}
+
+model Hypothesis {
+  id           String  @id @default(cuid())
+  projectId    String
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hypothesisId String
+  code         String
+  title        String
+  varChain     Json
+  testMethod   String
+  basis        String
+  status       String  @default("pending")
+}
+
+// ============================================================
+// 4. 文献
+// ============================================================
+
+model LitPaper {
+  id             String  @id @default(cuid())
+  projectId      String
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  paperId        String
+  title          String
+  authors        String
+  journal        String
+  year           Int
+  quartile       String
+  doi            String?
+  doiStatus      String
+  doiStatusText  String
+  citedCount     Int?
+  abstractText   String  @db.Text
+  matchReason    String
+  relevanceScore Float   @default(0)
+  citable        Boolean @default(true)
+}
+
+model LitSelection {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  paperIds  Json
+}
+
+model LitVerify {
+  id              String  @id @default(cuid())
+  projectId       String  @unique
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status          String  @default("idle")
+  statusText      String  @default("")
+  agentAlpha      Json
+  agentBeta       Json
+  passedCount     Int     @default(0)
+  suspiciousCount Int     @default(0)
+  failedCount     Int     @default(0)
+  blockExport     Boolean @default(false)
+  note            String  @default("")
+}
+
+model KbQa {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String   @db.Text
+  citations Json
+  note      String   @default("")
+  createdAt DateTime @default(now())
+}
+
+// ============================================================
+// 5. 数据分析
+// ============================================================
+
+model AnalysisMethodState {
+  id               String  @id @default(cuid())
+  projectId        String  @unique
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  selectedMethodId String?
+  methods          Json
+  trail            Json
+}
+
+model HealthReport {
+  id          String   @id @default(cuid())
+  projectId   String   @unique
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  accuracy    Float    @default(0)
+  reportedAt  DateTime @default(now())
+  metrics     Json
+  missingBars Json
+}
+
+model AnalysisRun {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runId      String
+  methodId   String
+  methodName String
+  finishedAt DateTime @default(now())
+  sampleSize Int
+  effects    Json
+  robustness Json
+}
+
+// ============================================================
+// 6. 写作 / 选刊 / 评审 / 导出（页面级载荷用 Json）
+// ============================================================
+
+model WritingDoc {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      Json
+}
+
+model JournalState {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      Json
+}
+
+model ReviewState {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      Json
+}
+
+model ExportState {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      Json
+}
+
+// ============================================================
+// 7. 异步任务
+// ============================================================
+
+model Task {
+  id         String   @id @default(cuid())
+  taskId     String   @unique
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type       String
+  status     String   @default("pending")
+  progress   Int      @default(0)
+  etaSeconds Int?
+  message    String   @default("")
+  result     Json?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime @default(now())
+}

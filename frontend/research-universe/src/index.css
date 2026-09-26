@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-page text-ink font-sans text-base antialiased;
+  }
+
+  /* 滚动条：细、浅、不抢视觉 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d5dce7;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c0c9d8;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* 通用卡片 */
+  .ru-card {
+    @apply bg-white border border-line rounded-card shadow-card;
+  }
+  /* 卡内嵌面板（浅灰底） */
+  .ru-panel {
+    @apply bg-panel border border-line rounded-card;
+  }
+  /* 卡片小标题 */
+  .ru-card-title {
+    @apply flex items-center gap-2 text-md font-semibold text-ink;
+  }
+  /* 说明性小字 */
+  .ru-hint {
+    @apply text-xs text-ink-3 leading-[20px];
+  }
+  /* 表单输入 */
+  .ru-input {
+    @apply w-full h-9 px-3 text-base bg-white border border-line-strong rounded-card
+           placeholder:text-ink-3 outline-none transition
+           focus:border-brand focus:ring-2 focus:ring-brand/15;
+  }
+  .ru-select {
+    @apply ru-input pr-8 appearance-none bg-no-repeat cursor-pointer;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C96A8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 10px center;
+  }
+  /* 表格 */
+  .ru-th {
+    @apply text-left text-xs font-medium text-ink-3 px-4 py-2.5 bg-panel border-b border-line whitespace-nowrap;
+  }
+  .ru-td {
+    @apply text-base text-ink px-4 py-3 border-b border-line align-middle;
+  }
+}
+
+/* 加载骨架动画 */
+@keyframes ru-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.ru-skeleton {
+  background: linear-gradient(90deg, #eef1f6 25%, #f6f8fb 37%, #eef1f6 63%);
+  background-size: 800px 100%;
+  animation: ru-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes ru-spin {
+  to { transform: rotate(360deg); }
+}
+.ru-spin {
+  animation: ru-spin 0.9s linear infinite;
+}
+
+@keyframes ru-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ru-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ru-fade-in { animation: ru-fade-in 0.18s ease-out; }
+.ru-pop-in { animation: ru-pop-in 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* 登录页左栏入座：一次编排好的入场，与引文网络的绘制同步 */
+@keyframes ru-rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ru-rise-in { animation: ru-rise-in 0.66s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ru-rise-in { animation: none; }
+}
